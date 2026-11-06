@@ -1,6 +1,14 @@
-[package]
-name = "newton-rs"
+[workspace]
+resolver = "3"
+members = ["crates/physics", "desktop"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
+[workspace.dependencies]
+pixels = "0.17.2"
+winit = "0.30.13"
+env_logger = "0.11.11"
+log = "0.4.35"
+physics = { path = "crates/physics" }
