@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use pixels::{Pixels, SurfaceTexture};
-use winit::{application::ApplicationHandler, dpi::LogicalSize, event::WindowEvent, window::Window};
+use winit::{
+    application::ApplicationHandler, dpi::LogicalSize, event::WindowEvent, window::Window,
+};
 
 const WIDTH: u32 = 640;
 const HEIGHT: u32 = 480;
 
 const BACKGROUND_COLOR: [u8; 4] = [255, 255, 255, 255];
-
 
 #[derive(Default)]
 pub struct App {
@@ -17,34 +18,63 @@ pub struct App {
 
 impl App {
     fn draw(frame: &mut [u8], width: u32, height: u32) {
-        const STRIP_COLOR: [u8; 4] = [255, 255, 255, 1];
-
         let center_x = (width / 2) as i32;
         let center_y = (height / 2) as i32;
         let radius: i32 = 90;
-        let radius_sq = radius * radius;
-
-        let min_y = (center_y - radius).max(0) as u32;
-        let max_y = (center_y + radius).min(height as i32 - 1) as u32;
 
         for pixels in frame.chunks_exact_mut(4) {
             pixels.copy_from_slice(&BACKGROUND_COLOR);
-            
         }
 
-        for y in min_y..=max_y {
+        Self::draw_circle(frame, width, height, center_x, center_y, radius);
+    }
 
-            let dy = y as i32 - center_y;
-            let dy_squred = dy * dy;
-            
-            let horizontal_radius = ((radius_sq - dy_squred) as f32).sqrt() as i32;
+    fn draw_circle(frame: &mut [u8], width: u32, height: u32, cx: i32, cy: i32, radius: i32) {
+        const CIRCLE_COLOR: [u8; 4] = [255, 255, 255, 1];
 
-            let left_x = (center_x - horizontal_radius).max(0);
-            let right_x = (center_x + horizontal_radius).min(width as i32 - 1);
+        let mut x = 0;
+        let mut y = radius;
+        let mut decision = 1 - radius;
 
-            for x in left_x..=right_x {
-                let index = ((y * width + x as u32) * 4) as usize;
-                frame[index..index + 4].copy_from_slice(&STRIP_COLOR);
+        while x <= y {
+            draw_horizontal_line(frame, width, height, cx - x, cx + x, cy + y);
+            draw_horizontal_line(frame, width, height, cx - x, cx + x, cy - y);
+
+            draw_horizontal_line(frame, width, height, cx - y, cx + y, cy + x);
+            draw_horizontal_line(frame, width, height, cx - y, cx + y, cy - x);
+
+            x += 1;
+
+            if decision < 0 {
+                decision += 2 * x + 1;
+            } else {
+                y -= 1;
+                decision += 2 * (x - y) + 1;
+            }
+        }
+
+        fn draw_horizontal_line(
+            frame: &mut [u8],
+            width: u32,
+            height: u32,
+            x_start: i32,
+            x_end: i32,
+            y: i32,
+        ) {
+            if y < 0 || y >= height as i32 {
+                return;
+            }
+
+            let left = x_start.max(0);
+            let right = x_end.min(width as i32 - 1);
+
+            if left > right {
+                return;
+            }
+
+            for x in left..=right {
+                let index = ((y as u32 * width + x as u32) * 4) as usize;
+                frame[index..index + 4].copy_from_slice(&CIRCLE_COLOR);
             }
         }
     }
@@ -59,7 +89,11 @@ impl ApplicationHandler for App {
             .with_title("Newton-rs | 2D Physics Simulator")
             .with_inner_size(LogicalSize::new(WIDTH, HEIGHT));
 
-        let window = Arc::new(event_loop.create_window(attr).expect("Failed to create window"));
+        let window = Arc::new(
+            event_loop
+                .create_window(attr)
+                .expect("Failed to create window"),
+        );
 
         let physical_size = window.inner_size();
         log::info!(
@@ -68,8 +102,10 @@ impl ApplicationHandler for App {
             physical_size.height
         );
 
-        let surface_tex = SurfaceTexture::new(physical_size.width, physical_size.height, window.clone());
-        let pixels = Pixels::new(WIDTH, HEIGHT, surface_tex).expect("Failed to create pixel framebuffer");
+        let surface_tex =
+            SurfaceTexture::new(physical_size.width, physical_size.height, window.clone());
+        let pixels =
+            Pixels::new(WIDTH, HEIGHT, surface_tex).expect("Failed to create pixel framebuffer");
 
         self.window = Some(window);
         self.pixels = Some(pixels);
@@ -80,11 +116,9 @@ impl ApplicationHandler for App {
         event_loop: &winit::event_loop::ActiveEventLoop,
         _window_id: winit::window::WindowId,
         event: winit::event::WindowEvent,
-    )
-    {
+    ) {
         match event {
             WindowEvent::CloseRequested => {
-
                 self.window = None;
                 self.pixels = None;
                 event_loop.exit();
@@ -102,7 +136,7 @@ impl ApplicationHandler for App {
                             event_loop.exit();
                             return;
                         }
-                    } 
+                    }
 
                     if let Some(window) = &self.window {
                         window.request_redraw();
@@ -111,8 +145,6 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(pixels) = &mut self.pixels {
-                    
-
                     if let Some(window) = &self.window {
                         let width = pixels.texture().width();
                         let height = pixels.texture().height();
@@ -127,7 +159,7 @@ impl ApplicationHandler for App {
                 }
             }
 
-            _ => ()
+            _ => (),
         }
     }
 }
