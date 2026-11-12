@@ -1,6 +1,12 @@
 use std::sync::Arc;
 
+use physics::math::vec2::Vec2;
 use pixels::{Pixels, SurfaceTexture};
+use renderer::{
+    renderer::Renderer,
+    scene::{RenderObject, Scene},
+    shapes::circle::Circle,
+};
 use winit::{
     application::ApplicationHandler, dpi::LogicalSize, event::WindowEvent, window::Window,
 };
@@ -8,75 +14,39 @@ use winit::{
 const WIDTH: u32 = 640;
 const HEIGHT: u32 = 480;
 
-const BACKGROUND_COLOR: [u8; 4] = [255, 255, 255, 255];
-
-#[derive(Default)]
 pub struct App {
     window: Option<Arc<Window>>,
     pixels: Option<Pixels<'static>>,
+    renderer: Renderer,
+    scene: Scene,
 }
 
 impl App {
-    fn draw(frame: &mut [u8], width: u32, height: u32) {
-        let center_x = (width / 2) as i32;
-        let center_y = (height / 2) as i32;
-        let radius: i32 = 90;
+    pub fn new() -> Self {
+        let mut scene = Scene::new();
 
-        for pixels in frame.chunks_exact_mut(4) {
-            pixels.copy_from_slice(&BACKGROUND_COLOR);
+        scene.add_object(RenderObject {
+            position: Vec2::new(200.0, 150.0),
+            shape: Box::new(Circle::new(50.0).expect("hard-coded radius is valid")),
+        });
+
+        scene.add_object(RenderObject {
+            position: Vec2::new(400.0, 250.0),
+            shape: Box::new(Circle::new(30.0).expect("hard-coded radius is valid")),
+        });
+
+        Self {
+            window: None,
+            pixels: None,
+            renderer: Renderer,
+            scene,
         }
-
-        Self::draw_circle(frame, width, height, center_x, center_y, radius);
     }
+}
 
-    fn draw_circle(frame: &mut [u8], width: u32, height: u32, cx: i32, cy: i32, radius: i32) {
-        const CIRCLE_COLOR: [u8; 4] = [255, 255, 255, 1];
-
-        let mut x = 0;
-        let mut y = radius;
-        let mut decision = 1 - radius;
-
-        while x <= y {
-            draw_horizontal_line(frame, width, height, cx - x, cx + x, cy + y);
-            draw_horizontal_line(frame, width, height, cx - x, cx + x, cy - y);
-
-            draw_horizontal_line(frame, width, height, cx - y, cx + y, cy + x);
-            draw_horizontal_line(frame, width, height, cx - y, cx + y, cy - x);
-
-            x += 1;
-
-            if decision < 0 {
-                decision += 2 * x + 1;
-            } else {
-                y -= 1;
-                decision += 2 * (x - y) + 1;
-            }
-        }
-
-        fn draw_horizontal_line(
-            frame: &mut [u8],
-            width: u32,
-            height: u32,
-            x_start: i32,
-            x_end: i32,
-            y: i32,
-        ) {
-            if y < 0 || y >= height as i32 {
-                return;
-            }
-
-            let left = x_start.max(0);
-            let right = x_end.min(width as i32 - 1);
-
-            if left > right {
-                return;
-            }
-
-            for x in left..=right {
-                let index = ((y as u32 * width + x as u32) * 4) as usize;
-                frame[index..index + 4].copy_from_slice(&CIRCLE_COLOR);
-            }
-        }
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -124,31 +94,41 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::Resized(size) => {
-                if size.width > 0 && size.height > 0 {
-                    if let Some(pixels) = &mut self.pixels {
-                        if let Err(err) = pixels.resize_surface(size.width, size.height) {
-                            log::error!("Pixels resize error: {}", err);
-                            event_loop.exit();
-                            return;
-                        }
-                        if let Err(err) = pixels.resize_buffer(size.width, size.height) {
-                            log::error!("Pixels resize error: {}", err);
-                            event_loop.exit();
-                            return;
-                        }
+                if size.width > 0
+                    && size.height > 0
+                    && let Some(window) = &self.window
+                    && let Some(pixels) = &mut self.pixels
+                {
+                    let logical = size.to_logical::<u32>(window.scale_factor());
+                    if let Err(err) = pixels.resize_surface(size.width, size.height) {
+                        log::error!("Pixels resize error: {}", err);
+                        event_loop.exit();
+                        return;
+                    }
+                    if let Err(err) = pixels.resize_buffer(logical.width, logical.height) {
+                        log::error!("Pixels resize error: {}", err);
+                        event_loop.exit();
+                        return;
                     }
 
-                    if let Some(window) = &self.window {
-                        window.request_redraw();
-                    }
+                    window.request_redraw();
                 }
             }
             WindowEvent::RedrawRequested => {
                 if let Some(pixels) = &mut self.pixels {
+                    let width = pixels.texture().width();
+                    let height = pixels.texture().height();
+
+                    if let Err(err) =
+                        self.renderer
+                            .render(pixels.frame_mut(), width, height, &self.scene)
+                    {
+                        log::error!("Rendering Error: {}", err);
+                        event_loop.exit();
+                        return;
+                    }
+
                     if let Some(window) = &self.window {
-                        let width = pixels.texture().width();
-                        let height = pixels.texture().height();
-                        Self::draw(pixels.frame_mut(), width, height);
                         window.pre_present_notify();
                     }
 

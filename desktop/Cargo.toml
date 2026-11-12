@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 physics.workspace = true
+renderer.workspace = true
 pixels.workspace = true
 winit.workspace = true
 log.workspace = true

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/physics", "desktop"]
+members = ["crates/physics", "crates/renderer", "desktop"]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,3 +12,4 @@ winit = "0.30.13"
 env_logger = "0.11.11"
 log = "0.4.35"
 physics = { path = "crates/physics" }
+renderer = { path = "crates/renderer" }
